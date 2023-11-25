@@ -27,4 +27,13 @@
     <extensions defaultExtensionNs="com.intellij">
 
     </extensions>
+    <actions>
+        <action id="StrToJson" class="com.example.helloideplugin.StrToJson" text="name" description="s2json">
+            <add-to-group group-id="NewGroup" anchor="first"/>
+        </action>
+        <action id="FormatProto" class="com.example.helloideplugin.FormatProto" text="Format-Proto"
+                description="FormatProto">
+            <add-to-group group-id="CodeFormatGroup" anchor="first"/>
+        </action>
+    </actions>
 </idea-plugin>
