@@ -11,6 +11,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class FormatProto extends AnAction {
 
     @Override
@@ -21,12 +24,16 @@ public class FormatProto extends AnAction {
 
         // 获取选中的文本
         String selectedText = editor.getSelectionModel().getSelectedText();
+        // 获取选中的文本的起始行数和结束行数
+        int offsetStart = editor.getSelectionModel().getSelectionStart();
+        int offsetEnd = editor.getSelectionModel().getSelectionEnd();
+        int startLine = editor.getDocument().getLineNumber(offsetStart);
+        int endLine = editor.getDocument().getLineNumber(offsetEnd);
+        // log
+        System.out.println("selectedText: " + selectedText);
+        System.out.println("startLine: " + startLine);
+        System.out.println("endLine: " + endLine);
 
-        // todo: 原地修改选中的文本
-        // 在选中的文本第一行后添加：aa
-        // 第二行后添加：bb
-        // 如果选中的文本不为空，进行修改操作
-        // 如果选中的文本不为空，进行修改操作
         if (selectedText != null) {
             // 添加的文本内容
             String addedText = "aa\nbb\n";
@@ -36,15 +43,92 @@ public class FormatProto extends AnAction {
 
             // 在写操作的上下文中执行插入操作
             WriteCommandAction.runWriteCommandAction(project, () -> {
-                // 获取选中文本的结束偏移量
-                int endOffset = editor.getSelectionModel().getSelectionEnd();
+                // todo 将选中的文本按行分隔，传入 formatMessage 方法，得到格式化后的文本
+                // 将选中的文本按行分隔
+                List<String> msgLines = Arrays.asList(selectedText.split("\n"));
+                try {
+                    // 格式化选中的文本
+                    List<String> formattedLines = formatMessage(msgLines);
 
-                // 在编辑器中插入文本
-                document.insertString(endOffset, addedText);
+                    // 替换选中的文本
+                    document.replaceString(offsetStart, offsetEnd, String.join("\n", formattedLines));
+                } catch (Exception exception) {
+                    Messages.showErrorDialog(project, exception.getMessage(), "Format Error");
+                    exception.printStackTrace();
+                }
+//                // 把每一行替换成格式化后的文本
+//                for (int i = startLine; i <= endLine; i++) {
+//                    // 替换 startLine 行的内容
+//                    int startOffset = document.getLineStartOffset(startLine);
+//                    int endOffset = document.getLineEndOffset(startLine);
+//                    // todo
+//                }
+
+
             });
-
-            // 弹窗显示修改后的文本
-            Messages.showMessageDialog(project, "Modified Text:\n" + selectedText + addedText, "Modified Text", Messages.getInformationIcon());
         }
+    }
+
+    private static List<String> formatMessage(List<String> msgLines) throws Exception {
+        int headIdx = -1;
+        for (int i = 0; i < msgLines.size(); i++) {
+            String line = msgLines.get(i);
+            if (line.contains("message")) {
+                headIdx = i;
+                break;
+            }
+        }
+        if (headIdx == -1) {
+            throw new Exception("Could not find message head");
+        }
+
+        int maxLeftLen = -1;
+        int endIdx = headIdx + 1;
+        int fldNum = 0;
+
+        for (; endIdx < msgLines.size(); endIdx++) {
+            if (msgLines.get(endIdx).equals("}")) {
+                break;
+            }
+
+            int idxSepCh = msgLines.get(endIdx).indexOf(";");
+            if (idxSepCh < 0) {
+                continue;
+            }
+
+            int idxEqCh = msgLines.get(endIdx).indexOf("=");
+            if (idxEqCh < 0) {
+                continue;
+            }
+
+            fldNum++;
+            msgLines.set(endIdx, String.format("%s= %d%s", msgLines.get(endIdx).substring(0, idxEqCh), fldNum, msgLines.get(endIdx).substring(idxSepCh)));
+            maxLeftLen = Math.max(maxLeftLen, msgLines.get(endIdx).indexOf(";") + 1);
+        }
+
+        if (endIdx == msgLines.size()) {
+            throw new Exception("Could not find message end");
+        }
+
+        for (int i = headIdx + 1; i < endIdx; i++) {
+            int idxSepCh = msgLines.get(i).indexOf(";");
+            if (idxSepCh < 0) {
+                continue;
+            }
+
+            int leftLen = idxSepCh + 1;
+            int idxComment = msgLines.get(i).indexOf("//");
+            if (idxComment < 0) {
+                continue;
+            }
+
+            msgLines.set(i, String.format("%s%s%s", msgLines.get(i).substring(0, leftLen), repeatSpaces(maxLeftLen - leftLen + 1), msgLines.get(i).substring(idxComment)));
+        }
+
+        return msgLines;
+    }
+
+    private static String repeatSpaces(int count) {
+        return " ".repeat(count);
     }
 }
